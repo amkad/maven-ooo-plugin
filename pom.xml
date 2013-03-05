@@ -4,12 +4,28 @@
 
   <groupId>org.openoffice.dev</groupId>
   <artifactId>maven-ooo-plugin</artifactId>
-  <version>1.1.1-SNAPSHOT</version>
+  <version>1.1</version>
 
   <name>Maven OOo development plugin</name>
-  <description>Maven plugin for OpenOffice.org extensions build</description>
+  <description>Maven plugin for OpenOffice.org extensions build. This plugin is still based on Maven 2 and OOo 3.2.</description>
+  <url>https://github.com/fredericmorin/maven-ooo-plugin</url>
 
   <packaging>maven-plugin</packaging>
+  
+  <ciManagement>
+    <system>Jenkins</system>
+    <url>http://bbb.i:8280/job/maven-ooo-plugin/</url>
+  </ciManagement>
+  
+  <issueManagement>
+    <system>github</system>
+    <url>https://github.com/fredericmorin/maven-ooo-plugin/issues</url>
+  </issueManagement>
+  
+  <scm>
+    <connection>scm:http://github.com/fredericmorin/maven-ooo-plugin.git</connection>
+    <developerConnection>scm:https://github.com/fredericmorin/maven-ooo-plugin.git</developerConnection>
+  </scm>
   
   <build>
 
@@ -21,9 +37,22 @@
     </resources>
 
     <directory>target</directory>
+    
+    <pluginManagement>
     <plugins>
       <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>2.7</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    
+    <plugins>
+      <plugin>
+      	<groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+      	<version>2.3.2</version>
         <configuration>
           <source>1.6</source>
           <target>1.6</target>
@@ -31,7 +60,9 @@
         </configuration>
       </plugin>
       <plugin>
+      	<groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
+      	<version>2.1.2</version>
         <executions>
           <execution>
             <id>attach-sources</id>
@@ -44,23 +75,162 @@
       <plugin>
 	    <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.7.1</version>
         <configuration>
           <excludes>
             <exclude>**/Abstract*.java</exclude>
           </excludes>
         </configuration>
 	  </plugin>
+      <!-- 
+          Allow Integration Tests
+          see http://maven.apache.org/plugins/maven-invoker-plugin/
+          see http://svn.apache.org/repos/asf/maven/plugins/tags/maven-invoker-plugin-1.5
+       -->
+      <plugin>
+        <artifactId>maven-invoker-plugin</artifactId>
+        <version>1.5</version>
+        <configuration>
+          <debug>false</debug>
+          <projectsDirectory>src/it</projectsDirectory>
+          <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
+          <pomIncludes>
+            <pomInclude>*/pom.xml</pomInclude>
+          </pomIncludes>
+          <preBuildHookScript>setup</preBuildHookScript>
+          <postBuildHookScript>verify</postBuildHookScript>
+          <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
+          <settingsFile>src/it/settings.xml</settingsFile>
+          <goals>
+            <goal>package</goal>
+          </goals>
+        </configuration>
+        <executions>
+          <execution>
+            <id>integration-test</id>
+            <goals>
+              <goal>install</goal>
+              <goal>run</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>2.3.1</version>
+        <configuration>
+          <createChecksum>true</createChecksum>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 
   <reporting>
     <plugins>
       <plugin>
+      	<groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
+      	<version>2.3.1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>2.7.2</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jxr-plugin</artifactId>
+        <version>2.2</version>
+        <configuration>
+          <linkJavadoc>true</linkJavadoc>
+        </configuration>
+      </plugin>
+      <!-- 
+          Changes
+          see http://maven.apache.org/plugins/maven-changes-plugin/usage.html
+       -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-changes-plugin</artifactId>
+        <version>2.4</version>
+        <reportSets>
+          <reportSet>
+            <reports>
+              <report>changes-report</report>
+            </reports>
+          </reportSet>
+        </reportSets>
+      </plugin>
+      <!-- 
+        Cobertura
+        see http://mojo.codehaus.org/cobertura-maven-plugin/usage.html
+       -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>cobertura-maven-plugin</artifactId>
+        <configuration>
+          <formats>
+            <format>html</format>
+            <format>xml</format>
+          </formats>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>taglist-maven-plugin</artifactId>
+        <version>2.4</version>
       </plugin>
     </plugins>
   </reporting>
 
+  <developers>
+    <developer>
+      <id>cedricbosdo</id>
+      <name>Cedric Bosdonnat</name>
+      <roles>
+        <role>originator</role>
+      </roles>
+      <url>http://cedric.bosdonnat.free.fr/wordpress/</url>
+    </developer>
+    <developer>
+      <id>fredericmorin</id>
+      <name>Frederic Morin</name>
+      <roles>
+        <role>project leader</role>
+      </roles>
+      <url>https://github.com/fredericmorin</url>
+    </developer>
+    <developer>
+      <id>oboehm</id>
+      <name>Oliver Boehm</name>
+      <email>oliver.boehm@agentes.de</email>
+      <organization>agentes AG</organization>
+      <organizationUrl>http://www.agentes.de</organizationUrl>
+      <roles>
+        <role>Java developer</role>
+        <role>user</role>
+      </roles>
+      <url>http://oli.blogger.de</url>
+    </developer>
+  </developers>
+  
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!-- 
@@ -69,28 +239,51 @@
      -->
     <maven.build.timestamp.format>yyyyMMdd-HHmm</maven.build.timestamp.format>
     <buildNumber>${maven.build.timestamp}</buildNumber>
+    <!-- 
+        Maven 2 specific versions
+        We define it here because the m2eclipse plugin does not handle it correct
+        when setting it in the profiles section
+     -->
+    <maven.version>2.2.1</maven.version>
+    <testing.harness.version>1.2</testing.harness.version>
   </properties>
+
+  <repositories>
+  	<repository>
+  		<releases>
+  			<updatePolicy>never</updatePolicy>
+  			<checksumPolicy>warn</checksumPolicy>
+  		</releases>
+  		<snapshots>
+  			<updatePolicy>daily</updatePolicy>
+  			<checksumPolicy>ignore</checksumPolicy>
+  		</snapshots>
+  		<id>agentes</id>
+  		<name>agentes repository</name>
+  		<url>http://labs.agentes.de/repository/</url>
+  	</repository>
+  </repositories>
 
   <dependencies>
     <dependency>
       <groupId>org.openoffice</groupId>
       <artifactId>ooo-plugin-packager-core</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.plugins</groupId>
-      <artifactId>maven-jar-plugin</artifactId>
-      <version>2.2</version>
+      <version>0.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-plugin-api</artifactId>
-      <version>2.2.1</version>
+      <version>${maven.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-project</artifactId>
-      <version>2.2.1</version>
+      <version>${maven.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-jar-plugin</artifactId>
+      <version>2.3.1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
@@ -100,7 +293,7 @@
     <dependency>
       <groupId>org.codehaus.plexus</groupId>
       <artifactId>plexus-archiver</artifactId>
-      <version>1.0</version>
+      <version>1.2</version>
       <exclusions>
         <exclusion>
           <groupId>org.codehaus.plexus</groupId>
@@ -115,7 +308,7 @@
     <dependency>
       <groupId>org.codehaus.plexus</groupId>
       <artifactId>plexus-io</artifactId>
-      <version>1.0</version>
+      <version>1.0.1</version>
       <exclusions>
         <exclusion>
           <groupId>org.codehaus.plexus</groupId>
@@ -126,12 +319,6 @@
           <artifactId>plexus-component-api</artifactId>
         </exclusion>
       </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.maven.shared</groupId>
-      <artifactId>maven-plugin-testing-harness</artifactId>
-      <version>1.1</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -155,10 +342,9 @@
       <version>1.5.15</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.maven.plugin-testing</groupId>
-      <artifactId>maven-plugin-testing-harness</artifactId>
-      <version>1.2</version>
-      <scope>test</scope>
+      <groupId>org.openoffice</groupId>
+      <artifactId>ridl</artifactId>
+      <version>3.2.1</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -166,9 +352,25 @@
       <version>4.8.1</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugin-testing</groupId>
+      <artifactId>maven-plugin-testing-harness</artifactId>
+      <version>${testing.harness.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
+  <licenses>
+    <license>
+      <name>GNU Lesser General Public License Version 2.1</name>
+      <url>http://www.gnu.org/licenses/lgpl-2.1.html</url>
+    </license>
+  </licenses>
+
+
+
   <profiles>
+  
     <profile>
       <id>m2eclipse</id>
       <properties>
@@ -183,6 +385,38 @@
         <directory>${targetDir}</directory>
       </build>
     </profile>
+
+    <!-- 
+        For the moment it is too hard to switch to Maven-2. But we want to
+        document the Maven-2 specific dependencies here.
+     -->
+    <profile>
+      <id>m2</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <properties>
+        <maven.version>2.2.1</maven.version>
+        <testing.harness.version>1.2</testing.harness.version>
+      </properties>
+    </profile>
+    
+    <!-- 
+        These are the Maven-3 specific version. But they are not tested yet
+        (29-Jan-2011, Oli B.)
+     -->
+    <profile>
+      <id>m3</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <properties>
+        <maven.version>3.0.2</maven.version>
+        <!-- see http://maven.apache.org/plugin-testing/maven-plugin-testing-harness/ -->
+        <testing.harness.version>2.0-alpha-1</testing.harness.version>
+      </properties>
+    </profile>
+
   </profiles>
 
 </project>

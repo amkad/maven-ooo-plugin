@@ -47,6 +47,7 @@ import java.io.File;
 
 import org.codehaus.plexus.util.cli.CommandLineException;
 import org.openoffice.maven.ConfigurationManager;
+import org.openoffice.maven.Environment;
 import org.openoffice.maven.utils.IVisitable;
 import org.openoffice.maven.utils.VisitableFile;
 
@@ -95,7 +96,7 @@ public class IdlcVisitor extends AbstractVisitor {
      * @throws Exception
      *             if the idl file compilation fails
      */
-    private static void runIdlcOnFile(VisitableFile pFile) throws Exception {
+    private static void runIdlcOnFile(final VisitableFile pFile) throws Exception {
 
         getLog().info("Building file: " + pFile.getPath());
 
@@ -109,33 +110,26 @@ public class IdlcVisitor extends AbstractVisitor {
 
         getLog().debug("output dir: " + outDir);
 
-//        String[] argsParam = { outDir.getPath(), sdkIdl.getPath(), prjIdl.getPath(), pFile.getPath() };
-//
-//        File command = new File("idlc");
-//        String args = "-O \"{0}\" -I \"{1}\" -I \"{2}\" {3}";
-//        args = MessageFormat.format(args, (Object[]) argsParam);
-//        
-//        Process process = ConfigurationManager.runTool(command.getPath(), args);
-//
-//        ErrorReader.readErrors(process.getErrorStream());
-//
-//        String output = "";
-//        BufferedReader buffer = new BufferedReader(new InputStreamReader(process.getInputStream()));
-//        String line = buffer.readLine();
-//        while (null != line) {
-//            output += line + "\n";
-//            line = buffer.readLine();
-//        }
-//        System.out.println("Output: " + output);
-//        int n = process.waitFor();
-//        if (n != 0) {
-//            throw new Exception("'" + command + " " + args + "' exits with " + n);
-//        }
-
-        int n = ConfigurationManager.runCommand("idlc", "-O", outDir.getPath(), "-I", sdkIdl.getPath(), "-I",
-                prjIdl.getPath(), pFile.getPath());
+//        int n = ConfigurationManager.runCommand("idlc", "-O", outDir.getPath(), "-I", sdkIdl.getPath(), "-I",
+//                prjIdl.getPath(), pFile.getPath());
+        int n;
+        String idlc = "idlc";
+        try {
+            n = runIdlc(idlc, outDir, sdkIdl, prjIdl, pFile);
+        } catch (CommandLineException cle) {
+            idlc = new File(Environment.getSdkBinPath(), "idlc").getPath();
+            getLog().warn("'idlc' failed - trying now '" + idlc + "'...", cle);
+            n = runIdlc(idlc, outDir, sdkIdl, prjIdl, pFile);
+        }
         if (n != 0) {
-            throw new CommandLineException("idlc exits with " + n);
+            throw new CommandLineException(idlc + " exits with " + n);
         }
     }
+
+    private static int runIdlc(final String idlc, final File outDir, final File sdkIdl, final File prjIdl,
+            final VisitableFile pFile) throws CommandLineException {
+        return ConfigurationManager.runCommand(idlc, "-O", outDir.getPath(), "-I", sdkIdl.getPath(), "-I",
+                prjIdl.getPath(), pFile.getPath());
+    }
+    
 }

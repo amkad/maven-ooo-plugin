@@ -43,8 +43,11 @@
  ************************************************************************/
 package org.openoffice.maven.idl;
 
+import java.io.File;
+
 import org.codehaus.plexus.util.cli.CommandLineException;
 import org.openoffice.maven.ConfigurationManager;
+import org.openoffice.maven.Environment;
 import org.openoffice.maven.utils.IVisitable;
 import org.openoffice.maven.utils.VisitableFile;
 
@@ -86,22 +89,24 @@ public class RegmergeVisitor extends AbstractVisitor {
         
         getLog().info("Merging file: " + pFile.getPath());
         
-        // Compute the command line
-//        String commandPattern = "regmerge {0} /UCR {0} \"{1}\"";
-//        
-//        String projectTypes = "";
-//        projectTypes = ConfigurationManager.getTypesFile();
-//        
-//        String[] args = {projectTypes, pFile.getPath()};
-//        
-//        String command = MessageFormat.format(commandPattern, (Object[]) args);
-        
-        // Run regmerge
-//        ConfigurationManager.runTool(command);
-        int n = ConfigurationManager.runCommand("regmerge", ConfigurationManager.getTypesFile(), "/UCR",
-                pFile.getPath());
+//        int n = ConfigurationManager.runCommand("regmerge", ConfigurationManager.getTypesFile(), "/UCR",
+//                pFile.getPath());
+        int n;
+        String regmerge = "regmerge";
+        try {
+            n = runRegmerge(regmerge, pFile);
+        } catch (CommandLineException cle) {
+            regmerge = new File(Environment.getOoSdkUreBinDir(), "regmerge").getPath();
+            getLog().warn("'regmerge' failed - trying now '" + regmerge + "'...", cle);
+            n = runRegmerge(regmerge, pFile);
+        }
         if (n != 0) {
             throw new CommandLineException("regmerge returned with " + n);
         }
     }
+    
+    private static int runRegmerge(final String regmerge, final VisitableFile pFile) throws CommandLineException {
+        return ConfigurationManager.runCommand(regmerge, ConfigurationManager.getTypesFile(), "/UCR", pFile.getPath());
+    }
+
 }

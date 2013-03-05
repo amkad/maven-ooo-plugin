@@ -48,10 +48,13 @@ import java.io.FilenameFilter;
 import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.maven.plugin.*;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.handler.ArtifactHandler;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.codehaus.plexus.util.ReflectionUtils;
 import org.codehaus.plexus.util.cli.CommandLineException;
-import org.openoffice.maven.BuildInfo;
-import org.openoffice.maven.ConfigurationManager;
+import org.openoffice.maven.*;
 import org.openoffice.maven.utils.VisitableFile;
 
 /**
@@ -62,7 +65,7 @@ import org.openoffice.maven.utils.VisitableFile;
  * 
  * @author Cedric Bosdonnat
  */
-public class IdlBuilderMojo extends AbstractMojo {
+public class IdlBuilderMojo extends AbstractOOoMojo {
     
     /**
      * Instantiates a new idl builder mojo.
@@ -100,27 +103,6 @@ public class IdlBuilderMojo extends AbstractMojo {
      * @readonly
      */
     private File outputDirectory;
-
-    /**
-     * OOo instance to build the extension against.
-     * 
-     * @parameter
-     */
-    private File ooo;
-
-    /**
-     * OOo SDK installation where the build tools are located.
-     * 
-     * @parameter
-     */
-    private File sdk;
-    
-    /**
-     * IDL directory where the IDL sources can be found
-     * 
-     * @parameter expression="src/main/resources"
-     */
-    private File idlDir;
 
     /**
      * Main method of the idl builder Mojo.
@@ -194,6 +176,28 @@ public class IdlBuilderMojo extends AbstractMojo {
         this.getLog().info("idlDir used: " + idlDir.getAbsolutePath());
         ConfigurationManager.setOutput(directory);
         ConfigurationManager.setClassesOutput(outputDirectory);
+        setUpArtifactHandler();
+    }
+    
+    /**
+     * We set here the language of the used ArtifactHandler to "java".
+     * Why? Because some plugins (like the aspectj-maven-plugin) requires it.
+     * The aspectj-maven-plugins prints a "Not executing aspectJ compiler as
+     * the project is not a Java classpath-capable package" if language is not
+     * set or not "java".
+     */
+    private void setUpArtifactHandler() {
+        Artifact artifact = this.project.getArtifact();
+        ArtifactHandler handler = artifact.getArtifactHandler();
+        String language = handler.getLanguage();
+        if (!"java".equals(language)) {
+            this.getLog().debug("setting up ArtifactHandler from language '" + language + "' to 'java'...");
+            try {
+                ReflectionUtils.setVariableValueInObject(handler, "language", "java");
+            } catch (IllegalAccessException e) {
+                this.getLog().warn("can't set java language - using old value '" + language + "'", e);
+            }
+        }
     }
 
     /**
@@ -212,39 +216,29 @@ public class IdlBuilderMojo extends AbstractMojo {
                     "No " + typesFile + " file build: check previous errors");
         }
 
-//        // Compute the command
-//        String commandPattern = "javamaker -T{0}.* -nD -Gc -BUCR -O " +
-//                "\"{1}\" \"{2}\" -X\"{3}\" -X\"{4}\"";
-//
-//        String classesDir = ConfigurationManager.getClassesOutput().
-//            getPath();
-//        String oooTypesFile = ConfigurationManager.getOOoTypesFile();
-//
-//        // Guess the root module
-//        String rootModule = guessRootModule();
-//
-//        String[] args = {
-//            rootModule, 
-//            classesDir, 
-//            typesFile, 
-//            oooTypesFile,
-//            ConfigurationManager.getOffapiTypesFile()
-//        };
-//        String command = MessageFormat.format(commandPattern, (Object[])args);
-//
-//        this.getLog().info("Running command: " + command);
-//        
-//        // Run the javamaker command
-//        ConfigurationManager.runTool(command);
-        
         String classesDir = ConfigurationManager.getClassesOutput().getPath();
         String oooTypesFile = ConfigurationManager.getOOoTypesFile();
         String rootModule = guessRootModule();
-        int n = ConfigurationManager.runCommand("javamaker", "-T" + rootModule + ".*", "-nD", "-Gc", "-BUCR", "-O",
-                classesDir, typesFile, "-X" + oooTypesFile, "-X" + ConfigurationManager.getOffapiTypesFile());
+//        int n = ConfigurationManager.runCommand("javamaker", "-T" + rootModule + ".*", "-nD", "-Gc", "-BUCR", "-O",
+//                classesDir, typesFile, "-X" + oooTypesFile, "-X" + ConfigurationManager.getOffapiTypesFile());
+        int n;
+        String javamaker = "javamaker";
+        try {
+            n = runJavamaker(javamaker, rootModule, classesDir, typesFile, oooTypesFile);
+        } catch (CommandLineException cle) {
+            javamaker = new File(Environment.getSdkBinPath(), "javamaker").getPath();
+            getLog().warn("'javamaker' failed - trying now '" + javamaker + "'...", cle);
+            n = runJavamaker(javamaker, rootModule, classesDir, typesFile, oooTypesFile);
+        }
         if (n != 0) {
             throw new CommandLineException("javamaker exits with " + n);
         }
+    }
+    
+    private static int runJavamaker(final String javamaker, final String rootModule, final String classesDir,
+            final String typesFile, final String oooTypesFile) throws CommandLineException {
+        return ConfigurationManager.runCommand(javamaker, "-T" + rootModule + ".*", "-nD", "-Gc", "-BUCR", "-O",
+                classesDir, typesFile, "-X" + oooTypesFile, "-X" + ConfigurationManager.getOffapiTypesFile());
     }
 
     /**

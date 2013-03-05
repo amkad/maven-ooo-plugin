@@ -17,15 +17,21 @@ package org.openoffice.maven.packager;
  * under the License.
  */
 
-import java.io.File;
+import java.io.*;
+import java.util.*;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.maven.archiver.MavenArchiveConfiguration;
 import org.apache.maven.archiver.MavenArchiver;
-import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.MavenProjectHelper;
+import org.codehaus.plexus.archiver.ArchiverException;
 import org.codehaus.plexus.archiver.jar.JarArchiver;
+import org.codehaus.plexus.archiver.jar.ManifestException;
+import org.openoffice.maven.AbstractOOoMojo;
+import org.openoffice.maven.utils.ClassReader;
 
 /**
  * Base class for creating a jar from project classes.
@@ -33,7 +39,7 @@ import org.codehaus.plexus.archiver.jar.JarArchiver;
  * @author <a href="evenisse@apache.org">Emmanuel Venisse</a>
  * @version $Id: AbstractJarMojo.java 611327 2008-01-11 23:15:17Z dennisl $
  */
-public abstract class AbstractOxtMojo extends AbstractMojo {
+public abstract class AbstractOxtMojo extends AbstractOOoMojo {
     
     private static final String[] DEFAULT_EXCLUDES = new String[] { "**/package.html", "CVS", "**/CVS", ".cvsignore",
                     "**/.cvsignore" };
@@ -81,15 +87,6 @@ public abstract class AbstractOxtMojo extends AbstractMojo {
     private JarArchiver jarArchiver;
 
     /**
-     * The Maven project.
-     * 
-     * @parameter expression="${project}"
-     * @required
-     * @readonly
-     */
-    private MavenProject project;
-
-    /**
      * The archive configuration to use.
      * See <a
      * href="http://maven.apache.org/shared/maven-archiver/index.html">the
@@ -132,16 +129,19 @@ public abstract class AbstractOxtMojo extends AbstractMojo {
      * @parameter expression="${jar.forceCreation}" default-value="false"
      */
     private boolean forceCreation;
+    
+    /**
+     * Whether the dependent jars should be added to the plugin or not.
+     * 
+     * @parameter default-value="false"
+     */
+    protected boolean addDependencies;
 
     /**
      * Return the specific output directory to serve as the root for the
      * archive.
      */
     protected abstract File getClassesDirectory();
-
-    protected final MavenProject getProject() {
-        return project;
-    }
 
     /**
      * Overload this to produce a jar with another classifier, for example a
@@ -190,14 +190,7 @@ public abstract class AbstractOxtMojo extends AbstractMojo {
                 getLog().warn("JAR will be empty - no content was marked for inclusion!");
             } else {
                 archiver.getArchiver().addDirectory(contentDirectory, getIncludes(), getExcludes());
-            }
-
-            File existingManifest = getDefaultManifestFile();
-            assert existingManifest != null;
-
-            if (useDefaultManifestFile && existingManifest.exists() && archive.getManifestFile() == null) {
-                getLog().info("Adding existing MANIFEST to archive. Found under: " + existingManifest.getPath());
-                archive.setManifestFile(existingManifest);
+                handleManifest();
             }
 
             assert project.getArtifact() != null;
@@ -205,12 +198,133 @@ public abstract class AbstractOxtMojo extends AbstractMojo {
             archiver.createArchive(project, archive);
 
             return jarFile;
-        } catch (Exception e) {
-            // TODO: improve error handling
+        } catch (ArchiverException ae) {
+            throw new MojoExecutionException("can't create archive " + jarFile, ae);
+        } catch (ManifestException me) {
+            throw new MojoExecutionException("problem with manifest " + defaultManifestFile, me);
+        } catch (IOException ioe) {
+            throw new MojoExecutionException("can't create archive " + jarFile, ioe);
+        } catch (DependencyResolutionRequiredException e) {
             throw new MojoExecutionException("Error assembling JAR", e);
         }
     }
 
+    protected String getLibname(File file) {
+        return "lib/" + file.getName();
+    }
+
+    private void handleManifest() {
+        File existingManifest = getDefaultManifestFile();
+        assert existingManifest != null;
+        if (useDefaultManifestFile && existingManifest.exists() && archive.getManifestFile() == null) {
+            getLog().info("Adding existing MANIFEST to archive. Found under: " + existingManifest.getPath());
+            archive.setManifestFile(existingManifest);
+        } else {
+            archive.addManifestEntry("ManifestVersion", "1.0");
+            addRegistrationClassNameToManifest();
+            addClasspathToManifest();
+        }
+    }
+
+    private void addRegistrationClassNameToManifest() {
+        if (hasRegistrationClassNameInManifest()) {
+            return;
+        }
+        try {
+            String registrationClassName = findRegistrationClassName(getClassesDirectory());
+            getLog().info("Adding RegistrationClassName=" + registrationClassName + " to MANIFEST");
+            archive.addManifestEntry("RegistrationClassName", registrationClassName);
+        } catch (FileNotFoundException fnfe) {
+            getLog().warn(fnfe);
+        }
+    }
+    
+    private boolean hasRegistrationClassNameInManifest() {
+        Map<?, ?> entries = archive.getManifestEntries();
+        for (Object key : entries.keySet()) {
+            if ("RegistrationClassName".equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Normally I would ask Maven to do the job to add a classpath entry to the
+     * generated classpath. But when I tried it I with
+     * <code>archive.getManifest().setAddClasspath(true);</code>
+     * I got an error in 
+     * MavenArchiver.getManifest(MavenProject, ManifestConfiguration, Map)
+     * because no artifact is set.
+     */
+    @SuppressWarnings("unchecked")
+    private void addClasspathToManifest() {
+        StringBuilder classpath = new StringBuilder(".");
+        if (this.oxtDir.exists()) {
+            Collection<File> jarfiles = FileUtils.listFiles(this.oxtDir, new String[] { "jar" }, true);
+            for (File file : jarfiles) {
+                classpath.append(" " + basename(this.oxtDir, file));
+            }
+            if (this.addDependencies) {
+                for (File file : getDependentJars()) {
+                    classpath.append(" " + getLibname(file));
+                }
+            }
+        } else {
+            getLog().info(this.oxtDir + " does not exist - ignored for generated Class-Path entry");
+        }
+        archive.addManifestEntry("Class-Path", classpath.toString());
+        getLog().debug("added to Class-Path: " + classpath);
+    }
+    
+    
+    /**
+     * Gets the dependent jars. The code was inspired from
+     * {@link "http://svn.supose.org/mlv/trunk/licenses-verifier-plugin/src/main/java/com/soebes/maven/plugins/mlv/AbstractLicenseVerifierPlugIn.java"}.
+     *
+     * @return the dependent jars
+     */
+    @SuppressWarnings("unchecked")
+    protected Collection<File> getDependentJars() {
+        Collection<File> jars = new ArrayList<File>();
+        Set<Artifact> artifacts = this.getProject().getArtifacts();
+        for (Artifact artifact : artifacts) {
+            if (!("test".equalsIgnoreCase(artifact.getScope()))
+                    && (!artifact.getGroupId().startsWith("org.openoffice"))) {
+                jars.add(artifact.getFile());
+            }
+        }
+        return jars;
+    }
+
+    private static String basename(final File dir, final File file) {
+        String path = file.getPath();
+        return path.substring(dir.getPath().length() + 1);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String findRegistrationClassName(File contentDirectory) throws FileNotFoundException {
+        Collection<File> classfiles = FileUtils.listFiles(contentDirectory, new String[] { "class" }, true);
+        for (File file : classfiles) {
+            if (file.getName().equals("RegistrationHandler.class")) {
+                return ClassReader.getAsClassname(contentDirectory, file);
+            }
+        }
+        return findRegistrationClassNameByContent(contentDirectory);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String findRegistrationClassNameByContent(File contentDirectory) throws FileNotFoundException {
+        Collection<File> classfiles = FileUtils.listFiles(contentDirectory, new String[] { "class" }, true);
+        for (File file : classfiles) {
+            ClassReader classReader = new ClassReader(contentDirectory, file);
+            if (classReader.hasOOoRegistryMethods()) {
+                return classReader.getClassname();
+            }
+        }
+        throw new FileNotFoundException("no RegistrationHandler found in " + contentDirectory);
+    }
+    
     /**
      * Generates the JAR.
      * 

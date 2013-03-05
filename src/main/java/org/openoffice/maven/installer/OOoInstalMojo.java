@@ -2,8 +2,14 @@ package org.openoffice.maven.installer;
 
 import java.io.File;
 
-import org.apache.maven.plugin.*;
-import org.apache.maven.project.MavenProject;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.factory.ArtifactFactory;
+import org.apache.maven.artifact.installer.ArtifactInstallationException;
+import org.apache.maven.artifact.installer.ArtifactInstaller;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.openoffice.maven.AbstractOOoMojo;
 import org.openoffice.maven.ConfigurationManager;
 
 /**
@@ -11,30 +17,46 @@ import org.openoffice.maven.ConfigurationManager;
  * @goal install
  * @phase install
  */
-public class OOoInstalMojo extends AbstractMojo {
+public class OOoInstalMojo extends AbstractOOoMojo {
     
     /**
-     * The Maven project.
+     * The POM file.
      * 
-     * @parameter expression="${project}"
+     * @parameter default-value="${project.file}"
      * @required
      * @readonly
      */
-    private MavenProject project;
+    private File pomFile;
 
     /**
-     * OOo instance to build the extension against.
+     * The place where the plugin should be installed to.
      * 
      * @parameter
      */
-    private File ooo;
+    private String install;
+    
+    /**
+     * The artifact factory.
+     * 
+     * @component
+     */
+    private ArtifactFactory artifactFactory;
 
     /**
-     * OOo SDK installation where the build tools are located.
+     * The ArtifactInstaller for installation.
      * 
-     * @parameter
+     * @component
      */
-    private File sdk;
+    private ArtifactInstaller installer;
+    
+    /**
+     * The local Maven repository (normally ~/.m2/repository).
+     * 
+     * @parameter expression="${localRepository}"
+     * @required
+     * @readonly
+     */
+    private ArtifactRepository localRepository;
 
     /**
      * <p>
@@ -47,7 +69,47 @@ public class OOoInstalMojo extends AbstractMojo {
      * @throws MojoFailureException
      *             if the packaging can't be done.
      */
-    public void execute() throws MojoExecutionException, MojoFailureException {
+    @Override
+    public void execute() throws MojoExecutionException {
+        if (isRepositoryInstallationRequired()) {
+            installToRepository();
+        } else {
+            installOOoPlugin();
+        }
+    }
+
+    private boolean isRepositoryInstallationRequired() {
+        String name = System.getProperty("org.openoffice.maven.install", install);
+        return "repository".equalsIgnoreCase(name);
+    }
+
+    private void installToRepository() throws MojoExecutionException {
+        File unoPluginFile = project.getArtifact().getFile();
+        if (!unoPluginFile.exists()) {
+            throw new MojoExecutionException("Could not find plugin artefact [" + unoPluginFile + "]");
+        }
+        try {
+            installer.install(unoPluginFile, project.getArtifact(), localRepository);
+//          installer.install(pomFile, project.getArtifact(), localRepository);
+            installPOM();
+            for (Object obj : project.getAttachedArtifacts()) {
+                Artifact artifact = (Artifact) obj;
+                installer.install(artifact.getFile(), artifact, localRepository);
+            }
+        } catch (ArtifactInstallationException e) {
+            throw new MojoExecutionException("can't install " + unoPluginFile + " to " + localRepository, e);
+        }
+    }
+    
+    private void installPOM() throws ArtifactInstallationException {
+        Artifact artifact = project.getArtifact();
+        Artifact pomArtifact = artifactFactory.createProjectArtifact(artifact.getGroupId(), artifact.getArtifactId(),
+                artifact.getBaseVersion());
+        pomArtifact.setFile(pomFile);
+        installer.install(pomFile, pomArtifact, localRepository);
+    }
+    
+    private void installOOoPlugin() throws MojoExecutionException {
         ooo = ConfigurationManager.initOOo(ooo);
         getLog().info("OpenOffice.org used: " + ooo.getAbsolutePath());
 
@@ -60,50 +122,33 @@ public class OOoInstalMojo extends AbstractMojo {
         }
 
         try {
-            String os = System.getProperty("os.name").toLowerCase();
-            String unopkg = "unopkg";
-            if (os.startsWith("windows"))
-                unopkg = "unopkg.com";
-//            String[] cmd = new String[] { unopkg, //
-//                            "add", //
-//                            "-f", //
-//                            unoPluginFile.getCanonicalPath(), //
-//            };
+            String unopkg = getUnopkgName();
 
             getLog().info("Installing plugin to OOo... please wait");
-//            Process process = ConfigurationManager.runTool(cmd);
-//            String message = "";
-//            { // read std input
-//                BufferedReader buffer = new BufferedReader(new InputStreamReader(process.getInputStream()));
-//                String line = buffer.readLine();
-//                while (null != line) {
-//                    message += line + "\n";
-//                    line = buffer.readLine();
-//                }
-//                if (message.length() > 0)
-//                    getLog().info(message);
-//                buffer = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-//                line = buffer.readLine();
-//                while (null != line) {
-//                    message += line + "\n";
-//                    line = buffer.readLine();
-//                }
-//                if (message.length() > 0)
-//                    getLog().info(message);
-//            }
-//
-//            int returnCode = process.waitFor();
-            int returnCode = ConfigurationManager.runCommand(unopkg, "add", "-f", unoPluginFile.getCanonicalPath());
+            int returnCode = ConfigurationManager.runCommand(unopkg, "add", "-v", "-f",
+                    unoPluginFile.getCanonicalPath());
             if (returnCode == 0) {
                 getLog().info("Plugin installed successfully");
             } else {
-//                System.out.println("\nRunning: [" + StringUtils.join(cmd, " ") + "]");
-//                throw new MojoExecutionException("unopkg renurned in error. Code: " + returnCode + "\n" + //
-//                        message);
-                throw new MojoExecutionException("'unopkg add -f " + unoPluginFile + "' returned with " + returnCode);
+                throw new MojoExecutionException("'unopkg add -v -f " + unoPluginFile + "' returned with " + returnCode);
             }
         } catch (Exception e) {
             throw new MojoExecutionException("Error while installing package to OOo.", e);
         }
     }
+
+    /**
+     * Gets the name of the unopkg command.
+     * 
+     * @return "unopkg" or "unopkg.com"
+     */
+    protected static String getUnopkgName() {
+        String os = System.getProperty("os.name").toLowerCase();
+        String unopkg = "unopkg";
+        if (os.startsWith("windows")) {
+            unopkg = "unopkg.com";
+        }
+        return unopkg;
+    }
+
 }

@@ -44,34 +44,6 @@ import org.openoffice.plugin.core.model.UnoPackage;
 public class OxtMojo extends AbstractOxtMojo {
 
     /**
-     * @parameter default-value="${project.attachedArtifacts}
-     * @required
-     * @readonly
-     */
-    private List<Artifact> attachedArtifacts;
-
-    /**
-     * OOo instance to build the extension against.
-     * 
-     * @parameter
-     */
-    private File ooo;
-
-    /**
-     * OOo SDK installation where the build tools are located.
-     * 
-     * @parameter
-     */
-    private File sdk;
-
-    /**
-     * OXT directory where the OXT sources can be found
-     * 
-     * @parameter expression="src/main/resources"
-     */
-    private File oxtDir;
-
-    /**
      * This is where build results go.
      * 
      * @parameter expression="${project.build.directory}"
@@ -151,15 +123,17 @@ public class OxtMojo extends AbstractOxtMojo {
         File oxtFile = new File(outputDirectory, finalName + ".oxt");
         UnoPackage pkg = new UnoPackage(oxtFile);
 
-        for (Artifact a : attachedArtifacts) {
-            if (a.getType().equalsIgnoreCase("jar")) {
-                pkg.addComponentFile(a.getFile().getName(), a.getFile(), "Java");
-            } else {
-                System.out.println(a.getFile() + " of type " + a.getType() + " skipped");
-            }
-        }
+        addJarFileArtifact(pkg);
 
-        pkg.addDirectory(oxtDir, this.getIncludes(), this.getExcludes());
+        if (oxtDir.isDirectory()) {
+            pkg.addDirectory(oxtDir, this.getIncludes(), this.getExcludes());
+        } else {
+            this.getLog().warn(oxtDir + " ignored: not a valid directory");
+        }
+        
+        if (this.addDependencies) {
+            addArtifactsTo(pkg);
+        }
         
         if (pkg.close() == null) {
             getLog().error("OXT Package Build failed");
@@ -171,7 +145,34 @@ public class OxtMojo extends AbstractOxtMojo {
             getProject().getArtifact().setFile(oxtFile);
         }
 
-        getLog().warn("OxtMojo not finished yet...");
+        getLog().info("OxtMojo finished ...");
+    }
+
+    private void addArtifactsTo(final UnoPackage pkg) {
+        for (File file : getDependentJars()) {
+            pkg.addFile(getLibname(file), file);
+            getLog().debug(file + " added");
+        }
+    }
+
+    /**
+     * Normally there is one Jar file as artifact attached.
+     * This is added now as 'uno-component'.
+     *
+     * @param pkg the pkg
+     * @since 27-Sep-2010 (oliver.boehm@agentes.de)
+     */
+    private void addJarFileArtifact(UnoPackage pkg) {
+        for (Object obj : getProject().getAttachedArtifacts()) {
+            Artifact a = (Artifact) obj;
+            if (a.getType().equalsIgnoreCase("jar")) {
+                File jarfile = a.getFile();
+                pkg.addTypelibraryFile(jarfile.getName(), jarfile, "Java");
+                getLog().info(a.getFile() + " added to " + pkg);
+            } else {
+                getLog().debug(a.getFile() + " of type " + a.getType() + " skipped");
+            }
+        }
     }
 
 }

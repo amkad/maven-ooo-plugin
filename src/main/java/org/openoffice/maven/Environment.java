@@ -25,11 +25,13 @@
 package org.openoffice.maven;
 
 import java.io.File;
+import java.util.Properties;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
 import org.apache.maven.plugin.logging.Log;
+import org.codehaus.plexus.util.cli.Commandline;
 import org.openoffice.maven.utils.FileFinder;
 
 /**
@@ -264,6 +266,83 @@ public final class Environment {
     private static File getenvAsFile(String name) {
         String filename = getenv(name);
         return (filename == null) ? null : new File(filename);
+    }
+
+    /**
+     * Returns the path to the OOO binaries depending on the OS and the
+     * architecture.
+     * 
+     * @return the full path to the OOo binaries
+     */
+    public static String getOOoBinPath() {
+        File oooHome = getOfficeHome();
+        File binDir = new File(oooHome, "program");
+        if (SystemUtils.IS_OS_MAC) {
+            binDir = new File(oooHome, "Contents/MacOS");
+        }
+        return binDir.getAbsolutePath();
+    }
+
+    /**
+     * Returns the path to the SDK binaries depending on the OS and the
+     * architecture.
+     * 
+     * @param pHome
+     *            the OpenOffice.org SDK home
+     * @return the full path to the SDK binaries
+     */
+    public static String getSdkBinPath() {
+        File sdkHome = getOoSdkHome();
+        // OOo SDK does not seem to include the target os in their packaging
+        // anymore. Tested with 3.2.0
+        String path = "/bin";
+        if (new File(sdkHome, path).exists()) {
+            return new File(sdkHome, path).getPath();
+        }
+    
+        // Get the Architecture properties
+        String arch = System.getProperty("os.arch").toLowerCase();
+    
+        if (SystemUtils.IS_OS_WINDOWS) {
+            path = "/windows/bin/";
+        } else if (SystemUtils.IS_OS_SOLARIS) {
+            if (arch.equals("sparc")) {
+                path = "/solsparc/bin";
+            } else {
+                path = "/solintel/bin";
+            }
+        } else if (SystemUtils.IS_OS_MAC) {
+            path = "/bin";
+        } else {
+            path = "/linux/bin";
+        }
+    
+        return new File(sdkHome, path).getPath();
+    }
+
+    /**
+     * Sets the up search path for the given commandline
+     *
+     * @param cl the commandline
+     * @throws Exception the exception
+     */
+    public static void setUpFor(final Commandline cl) throws Exception {
+        cl.addSystemEnvironment();
+        Properties envVars = cl.getSystemEnvVars();
+        String path = envVars.getProperty("PATH", "");
+        String pathSep = System.getProperty("path.separator", ":");
+        path = getSdkBinPath() + pathSep + getOOoBinPath() + pathSep + getOoSdkUreBinDir() + pathSep + path;        
+        cl.addEnvironment("PATH", path);
+        String oooLibs = getOoSdkUreLibDir().getCanonicalPath();
+        if (SystemUtils.IS_OS_WINDOWS) {
+            // I'm not sure if this works / is necessary
+            cl.addEnvironment("DLLPATH", oooLibs);
+        } else if (SystemUtils.IS_OS_MAC) {
+            cl.addEnvironment("DYLD_LIBRARY_PATH", oooLibs);
+        } else {
+            // *NIX environment
+            cl.addEnvironment("LD_LIBRARY_PATH", oooLibs);
+        }
     }
 
 }

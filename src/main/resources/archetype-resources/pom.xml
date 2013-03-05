@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>${groupId}</groupId>
-  <artifactId>${artifactId}</artifactId>
-  <version>${version}</version>
+  <groupId>${newGroupId}</groupId>
+  <artifactId>${newArtifactId}</artifactId>
+  <version>${newVersion}</version>
   <description>Custom OOo extension</description>
+  <packaging>oxt</packaging>
+
   <build>
     <plugins>
       <plugin>
@@ -21,27 +24,32 @@
       <plugin>
         <groupId>org.openoffice.dev</groupId>
         <artifactId>maven-ooo-plugin</artifactId>
-        <version>1.0</version>
+        <version>1.2-SNAPSHOT</version>
+        <extensions>true</extensions>
         <!-- 
             the following values can be configured:
-            ooo:    OpenOffice dir
-            sdk:    OpenOffice SDK dir
-            idlDir: IDL source dir
-            oxtDir: OXT source dir
+            ooo:             OpenOffice dir
+            sdk:             OpenOffice SDK dir
+            idlDir:          IDL source dir
+            oxtDir:          OXT source dir
+            addDependencies: to add dependent jar files (default: false)
+            install:         where to install: "repository" or "ooo" (default)
          -->
         <configuration>
-          <ooo></ooo>
-          <sdk></sdk>
+          <idlDir>src/main/idl</idlDir>
+          <oxtDir>src/main/oxt</oxtDir>
         </configuration>
         <executions>
           <execution>
             <phase>generate-sources</phase>
+            <id>idl</id>
             <goals>
               <goal>build-idl</goal>
             </goals>
           </execution>
           <execution>
             <phase>package</phase>
+            <id>oxt</id>
             <goals>
               <goal>oxt</goal>
             </goals>
@@ -50,5 +58,41 @@
       </plugin>
     </plugins>
   </build>
+
+  <dependencies>
+    <!-- OOo libs -->
+    <dependency>
+      <groupId>org.openoffice</groupId>
+      <artifactId>unoil</artifactId>
+      <version>3.2.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.openoffice</groupId>
+      <artifactId>juh</artifactId>
+      <version>3.2.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.openoffice</groupId>
+      <artifactId>jurt</artifactId>
+      <version>3.2.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.openoffice</groupId>
+      <artifactId>ridl</artifactId>
+      <version>3.2.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- test libs -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.8.1</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
 </project>
 
