@@ -4,27 +4,27 @@
 
   <groupId>org.openoffice.dev</groupId>
   <artifactId>maven-ooo-plugin</artifactId>
-  <version>1.1</version>
+  <version>1.2-SNAPSHOT</version>
 
   <name>Maven OOo development plugin</name>
   <description>Maven plugin for OpenOffice.org extensions build. This plugin is still based on Maven 2 and OOo 3.2.</description>
-  <url>https://github.com/fredericmorin/maven-ooo-plugin</url>
+  <url>https://github.com/amkad/maven-ooo-plugin</url>
 
   <packaging>maven-plugin</packaging>
   
   <ciManagement>
     <system>Jenkins</system>
-    <url>http://bbb.i:8280/job/maven-ooo-plugin/</url>
+    <url>https://amkad.ci.cloudbees.com/job/maven-ooo-plugin/</url>
   </ciManagement>
   
   <issueManagement>
     <system>github</system>
-    <url>https://github.com/fredericmorin/maven-ooo-plugin/issues</url>
+    <url>https://github.com/amkad/maven-ooo-plugin/issues</url>
   </issueManagement>
   
   <scm>
-    <connection>scm:http://github.com/fredericmorin/maven-ooo-plugin.git</connection>
-    <developerConnection>scm:https://github.com/fredericmorin/maven-ooo-plugin.git</developerConnection>
+    <connection>scm:http://github.com/amkad/maven-ooo-plugin.git</connection>
+    <developerConnection>scm:https://github.com/amkad/maven-ooo-plugin.git</developerConnection>
   </scm>
   
   <build>
