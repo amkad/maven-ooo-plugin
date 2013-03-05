@@ -29,11 +29,11 @@
   
   <distributionManagement>
     <repository>
-      <id>repo-amkad-releases</id>
+      <id>cloudbees-private-release-repository</id>
       <url>dav:https://repository-amkad.forge.cloudbees.com/release/</url>
     </repository>
     <snapshotRepository>
-      <id>repo-amkad-snapshots</id>
+      <id>cloudbees-private-snapshot-repository</id>
       <url>dav:https://repository-amkad.forge.cloudbees.com/snapshot/</url>
     </snapshotRepository>
   </distributionManagement>
