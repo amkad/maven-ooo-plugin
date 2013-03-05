@@ -30,11 +30,11 @@
   <distributionManagement>
     <repository>
       <id>repo-amkad-releases</id>
-      <url>https://repository-amkad.forge.cloudbees.com/release/</url>
+      <url>dav:https://repository-amkad.forge.cloudbees.com/release/</url>
     </repository>
     <snapshotRepository>
       <id>repo-amkad-snapshots</id>
-      <url>https://repository-amkad.forge.cloudbees.com/snapshot/</url>
+      <url>dav:https://repository-amkad.forge.cloudbees.com/snapshot/</url>
     </snapshotRepository>
   </distributionManagement>
 
